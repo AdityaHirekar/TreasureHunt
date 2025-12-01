@@ -1,0 +1,168 @@
+/* Scan.css */
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+    background: url("../bgimage.png") no-repeat center center fixed;
+    background-size: cover;
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+.container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(15px);
+    background-color: rgba(72, 61, 139, 0.85); /* Darker background color */
+    border-radius: 25px; /* Rounded corners */
+    padding: 25px; /* Reduced padding for decreased height */
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6);
+    width: 100%;
+    max-width: 900px; /* Increased form width */
+    border: 10px solid lightgray; /* 10px light gray border */
+}
+@font-face {
+    font-family: 'Glitch-font';
+    src: url('../../public/Glitch-font.otf') format('truetype');
+}
+
+h1 {
+    font-size: 2rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    text-align: center;
+    letter-spacing: 3px;
+    color: white;
+    text-shadow: 0px 0px 8px #ffffff;
+    font-family: 'Glitch-font', sans-serif;
+}
+
+
+form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+}
+
+label {
+    font-size: 1.1rem;
+    margin: 10px 0 5px; /* Reduced margin for decreased height */
+    color: white;
+}
+
+input {
+    width: 100%;
+    max-width: 600px; /* Increased input field width */
+    padding: 12px;
+    margin: 10px 0;
+    border: none;
+    border-radius: 25px;
+    background-color: rgba(255, 255, 255, 0.9); /* Slightly brighter input background */
+    color: black;
+    font-size: 1rem;
+    outline: none;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+button {
+    width: 100%;
+    max-width: 600px; /* Increased button width */
+    padding: 12px;
+    margin: 15px 0;
+    border: none;
+    border-radius: 25px;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    font-weight: bold;
+}
+
+button.scan-button {
+    background-color: #6a5acd;
+    color: white;
+    box-shadow: 0 4px 8px rgba(106, 90, 205, 0.4);
+}
+
+button.send-button {
+    background-color: #9370db; /* Matching the color in the image */
+    color: white;
+    box-shadow: 0 4px 8px rgba(147, 112, 219, 0.4); /* Softer shadow */
+}
+
+button:hover {
+    background-color: #483d8b; /* Hover effect for buttons */
+    box-shadow: 0 6px 12px rgba(72, 61, 139, 0.6);
+}
+
+button.send-button:hover {
+    background-color: #7b68ee; /* Slightly lighter purple on hover */
+    box-shadow: 0 6px 12px rgba(123, 104, 238, 0.6);
+}
+
+.success-message {
+    color: #32cd32;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background-color: white;
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+    width: 90%;
+    max-width: 400px;
+}
+
+button.close-button {
+    background-color: red;
+    color: white;
+    padding: 10px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+button.close-button:hover {
+    background-color: darkred;
+}
+
+/* Mobile Responsiveness */
+@media screen and (max-width: 480px) {
+    h1 {
+        font-size: 1.6rem;
+    }
+
+    input,
+    button {
+        width: 90%;
+        max-width: 300px;
+        padding: 10px;
+    }
+
+    .container {
+        padding: 20px;
+    }
+}
