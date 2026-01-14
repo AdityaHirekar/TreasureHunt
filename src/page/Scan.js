@@ -212,8 +212,12 @@ const Scan = () => {
 		const newCount = secretTapCount + 1;
 		setSecretTapCount(newCount);
 		if (newCount >= 10) {
-			if (window.confirm("DEBUG: Reset Session?")) {
+			if (window.confirm("DEBUG: Reset Session? (Device ID will be preserved)")) {
+				const savedDeviceId = localStorage.getItem("device_id");
 				localStorage.clear();
+				if (savedDeviceId) {
+					localStorage.setItem("device_id", savedDeviceId);
+				}
 				window.location.href = "/";
 			} else {
 				setSecretTapCount(0);
