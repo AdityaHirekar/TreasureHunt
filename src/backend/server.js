@@ -144,44 +144,10 @@ app.post("/scan", async (req, res) => {
 
 		// Location Check
 		if (team.assigned_location !== locationId) {
-			// Count previous wrong scans (scan_result = "FAIL")
-			const { count: wrongCount, error: countError } = await supabase
-				.from("scans")
-				.select("*", { count: "exact", head: true })
-				.eq("team_id", teamId)
-				.eq("scan_result", "FAIL");
-
-			if (countError) console.error("Info: Could not count wrong scans", countError);
-
-			const currentStrike = (wrongCount || 0) + 1;
-
-			if (currentStrike >= 3) {
-				// 3rd Strike: Disqualify
-				await supabase.from("teams").update({ disqualified: true }).eq("team_id", teamId);
-
-				await supabase.from("scans").insert([{
-					team_id: teamId,
-					location_id: locationId,
-					device_id: deviceId,
-					client_lat: lat,
-					client_lng: lng,
-					scan_result: "REJECTED",
-					admin_note: "Disqualified: 3rd Wrong Location"
-				}]);
-				return res.status(403).json({ error: "DISQUALIFIED: You have scanned the wrong location 3 times." });
-			} else {
-				// Warning
-				await supabase.from("scans").insert([{
-					team_id: teamId,
-					location_id: locationId,
-					device_id: deviceId,
-					client_lat: lat,
-					client_lng: lng,
-					scan_result: "FAIL",
-					admin_note: "Wrong Location"
-				}]);
-				return res.json({ result: "FAIL", message: `Wrong Location. Warning ${currentStrike}/3` });
-			}
+			await supabase.from("scans").insert([{
+				team_id: teamId, location_id: locationId, device_id: deviceId, client_lat: lat, client_lng: lng, scan_result: "FAIL", admin_note: "Wrong Location"
+			}]);
+			return res.json({ result: "FAIL", message: "Wrong Location" });
 		}
 
 
