@@ -264,8 +264,8 @@ app.post("/scan", async (req, res) => {
 					team_id: teamId, location_id: locationId, device_id: deviceId, client_lat: lat, client_lng: lng,
 					scan_result: "FAIL", admin_note: `GPS Warning (${Math.round(distance)}m > 25m)`, distance_check_meters: distance
 				}]);
-				// Return FAIL with a message to move closer
-				return res.json({ result: "FAIL", message: `Too far away! You are ${Math.round(distance)}m away (Max 25m). Move closer.` });
+				// Return FAIL with a generic message
+				return res.json({ result: "FAIL", message: "Too far away! Move closer to the location." });
 			}
 		} else {
 			// No Coordinates found for this ID
