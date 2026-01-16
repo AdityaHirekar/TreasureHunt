@@ -486,7 +486,10 @@ app.get("/team-status/:teamId", async (req, res) => {
 
 		// Fetch hint for the assigned location
 		let currentHint = "Unknown Objective";
-		if (team.assigned_location === "COMPLETED") {
+
+		if (team.disqualified || timeStatus.expired) {
+			currentHint = "DISQUALIFIED - Please report to Control Desk.";
+		} else if (team.assigned_location === "COMPLETED") {
 			currentHint = "MISSION COMPLETE! Return to College immediately for debriefing.";
 		} else if (team.assigned_location) {
 			const { data: loc } = await supabase.from("location").select("location_hint").eq("location_code", team.assigned_location).single();

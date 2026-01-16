@@ -53,7 +53,8 @@ const Scan = () => {
 	const [message, setMessage] = useState("");
 	const [deviceId, setDeviceId] = useState("");
 
-	const [disqualified, setDisqualified] = useState(false);
+	const [isDisqualified, setIsDisqualified] = useState(false);
+	const [showDQModal, setShowDQModal] = useState(false);
 	const [banReason, setBanReason] = useState("");
 	const disqualificationAckRef = useRef(false); // Track if user acknowledged the specific DQ session
 	const [currentClue, setCurrentClue] = useState("");
@@ -140,13 +141,15 @@ const Scan = () => {
 			.then(res => res.json())
 			.then(data => {
 				if (data.disqualified) {
+					setIsDisqualified(true);
 					// Only show if not already acknowledged
 					if (!disqualificationAckRef.current) {
-						setDisqualified(true);
+						setShowDQModal(true);
 					}
 					setBanReason(data.banReason || "Admin Disqualification");
 				} else {
-					setDisqualified(false); // Valid if re-qualified
+					setIsDisqualified(false); // Valid if re-qualified
+					setShowDQModal(false);
 					disqualificationAckRef.current = false; // Reset ack so they get warned again if re-DQ'd
 				}
 
@@ -334,7 +337,8 @@ const Scan = () => {
 					playErrorSound();
 					vibrateError();
 					if (response.status === 403 && result.error.includes("Disqualified")) {
-						setDisqualified(true);
+						setIsDisqualified(true);
+						setShowDQModal(true);
 						setBanReason(result.error);
 						setModalState({
 							isOpen: true,
@@ -407,6 +411,7 @@ const Scan = () => {
 			setMessage("Network Error: Could not verify team name.");
 		}
 	};
+
 
 	// Render Disqualification Modal instead of blocking page
 	// Logic: If disqualified, show Modal.
@@ -520,12 +525,14 @@ const Scan = () => {
 								<motion.button
 									className="scan-button"
 									type="button"
-									onClick={openScanner}
+									onClick={isDisqualified ? null : openScanner}
+									disabled={isDisqualified}
 									variants={scanButtonVariants}
-									whileHover={{ scale: 1.05, boxShadow: "0 0 35px var(--mv-primary)" }}
-									whileTap={{ scale: 0.95 }}
+									whileHover={isDisqualified ? {} : { scale: 1.05, boxShadow: "0 0 35px var(--mv-primary)" }}
+									whileTap={isDisqualified ? {} : { scale: 0.95 }}
+									style={isDisqualified ? { filter: 'grayscale(1)', opacity: 0.5, cursor: 'not-allowed' } : {}}
 								>
-									Scan QR
+									{isDisqualified ? "LOCKED" : "Scan QR"}
 								</motion.button>
 							)}
 							<br />
@@ -547,12 +554,12 @@ const Scan = () => {
 					)}
 
 					<GameModal
-						isOpen={disqualified}
+						isOpen={showDQModal}
 						title="DISQUALIFIED"
 						message={banReason || "Your team has been disqualified by the admin. Please report to the control desk."}
 						type="DISQUALIFIED"
 						onClose={() => {
-							setDisqualified(false);
+							setShowDQModal(false);
 							disqualificationAckRef.current = true; // Mark as acknowledged
 						}}
 					/>
