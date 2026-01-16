@@ -386,9 +386,14 @@ app.post("/scan", async (req, res) => {
 // 4. Leaderboard
 app.get("/leaderboard", async (req, res) => {
 	try {
-		const { data: teams } = await supabase.from("teams").select("team_id, team_name");
-		// Fetch all successful scans, including their timestamps
-		const { data: scans } = await supabase.from("scans").select("team_id, scan_time, location_id").eq("scan_result", "SUCCESS");
+		const { data: teamsData, error: teamsError } = await supabase.from("teams").select("team_id, team_name");
+		const { data: scansData, error: scansError } = await supabase.from("scans").select("team_id, scan_time, location_id").eq("scan_result", "SUCCESS");
+
+		if (teamsError) console.error("Teams Fetch Error", teamsError);
+		if (scansError) console.error("Scans Fetch Error", scansError);
+
+		const teams = teamsData || [];
+		const scans = scansData || [];
 
 		const leaderboard = teams.map(t => {
 			const teamId = t.team_id;
