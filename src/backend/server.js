@@ -254,7 +254,7 @@ app.post("/scan", async (req, res) => {
 		if (targetLat && targetLng) {
 			const distance = getDistanceFromLatLonInM(lat, lng, targetLat, targetLng);
 
-			const MAX_DISTANCE = 25; // Strict 25m limit
+			const MAX_DISTANCE = 100; // Updated to 100m limit
 			// If using Plus Code (which has an area), we might be more lenient or measure to edge? 
 			// Center is fine for 25m threshold if the code is precise enough (10+ digits).
 
@@ -262,7 +262,7 @@ app.post("/scan", async (req, res) => {
 				// WARN ONLY (No Disqualification)
 				await supabase.from("scans").insert([{
 					team_id: teamId, location_id: locationId, device_id: deviceId, client_lat: lat, client_lng: lng,
-					scan_result: "FAIL", admin_note: `GPS Warning (${Math.round(distance)}m > 25m)`, distance_check_meters: distance
+					scan_result: "FAIL", admin_note: `GPS Warning (${Math.round(distance)}m > 100m)`, distance_check_meters: distance
 				}]);
 				// Return FAIL with a generic message
 				return res.json({ result: "FAIL", message: "Too far away! Move closer to the location." });
@@ -289,44 +289,54 @@ app.post("/scan", async (req, res) => {
 
 		const successCount = (teamScans?.length || 0);
 
-		// If this was the 5th one (or more), they are done.
+		// If this was the 5th one, they are done.
 		if (successCount >= 5) {
 
-			// --- RANKING CALCULATION ---
-			// 1. Fetch ALL successful scans for ALL teams (excluding CLG)
+			// --- RANKING CALCULATION (Time Based) ---
+			// 1. Fetch ALL successful scans for ALL teams
 			const { data: allScans } = await supabase
 				.from("scans")
-				.select("team_id, scan_time")
-				.eq("scan_result", "SUCCESS")
-				.neq("location_id", "CLG");
+				.select("team_id, scan_time, location_id")
+				.eq("scan_result", "SUCCESS");
 
-			// 2. Group by team and find completion time for each
-			const teamCompletions = {}; // { teamId: timestamp }
+			// 2. Calculate Completion Times
+			const teamStats = {}; // { teamId: { start: time, end: time, count: num } }
 
 			allScans.forEach(s => {
-				if (!teamCompletions[s.team_id]) teamCompletions[s.team_id] = [];
-				teamCompletions[s.team_id].push(new Date(s.scan_time).getTime());
+				if (!teamStats[s.team_id]) teamStats[s.team_id] = { start: 0, end: 0, count: 0, scans: [] };
+
+				const time = new Date(s.scan_time).getTime();
+
+				if (s.location_id === "CLG") {
+					teamStats[s.team_id].start = time;
+				} else {
+					teamStats[s.team_id].scans.push(time);
+				}
 			});
 
 			const finishedTeams = [];
-			for (const [tId, times] of Object.entries(teamCompletions)) {
-				if (times.length >= 5) {
-					// Sort times to find the 5th one
-					times.sort((a, b) => a - b);
-					const finishTime = times[4]; // 0-indexed, so 4 is 5th
-					finishedTeams.push({ teamId: tId, finishTime });
+			for (const [tId, stats] of Object.entries(teamStats)) {
+				// Filter out non-location scans if any, but logic above separates CLG
+				if (stats.scans.length >= 5) {
+					// Sort scans to find the 5th one time
+					stats.scans.sort((a, b) => a - b);
+					const fifthScanTime = stats.scans[4];
+					const startTime = stats.start || fifthScanTime; // Fallback if no CLG scan (shouldn't happen)
+
+					const duration = fifthScanTime - startTime;
+					finishedTeams.push({ teamId: tId, duration, finishTime: fifthScanTime });
 				}
 			}
 
-			// 3. Sort finished teams by completion time
-			finishedTeams.sort((a, b) => a.finishTime - b.finishTime);
+			// 3. Sort finished teams by DURATION (Ascending)
+			finishedTeams.sort((a, b) => a.duration - b.duration);
 
 			// 4. Find rank of current team
 			const myRank = finishedTeams.findIndex(t => t.teamId === teamId) + 1; // 1-based rank
 
 			await supabase.from("teams").update({ assigned_location: "COMPLETED" }).eq("id", team.id);
 
-			console.log(`Team ${teamId} Finished. Rank: ${myRank}`);
+			console.log(`Team ${teamId} Finished. Duration: ${finishedTeams.find(t => t.teamId === teamId).duration / 60000} mins. Rank: ${myRank}`);
 
 			if (myRank === 1) {
 				return res.status(200).json({
@@ -378,35 +388,78 @@ app.get("/leaderboard", async (req, res) => {
 	try {
 		const { data: teams } = await supabase.from("teams").select("team_id, team_name");
 		// Fetch all successful scans, including their timestamps
-		const { data: scans } = await supabase.from("scans").select("team_id, scan_time").eq("scan_result", "SUCCESS");
+		const { data: scans } = await supabase.from("scans").select("team_id, scan_time, location_id").eq("scan_result", "SUCCESS");
 
-		const scores = {};
-		const lastScanTimes = {};
+		const leaderboard = teams.map(t => {
+			const teamId = t.team_id;
+			const stats = scores[teamId] || { score: 0, start: 0, end: 0, scans: [] };
 
+			// Calculate Duration if finished (score >= 5 excluding CLG, wait, score count below includes CLG?)
+			// Let's refine the map first
+
+			return {
+				team_name: t.team_name,
+				team_id: t.team_id,
+				score: 0, // Will fill
+				duration: Infinity, // Lower is better
+				last_scan_time: 0
+			};
+		});
+
+		// Hydrate leaderboard with scan data
 		scans.forEach(s => {
-			// Increment score
-			scores[s.team_id] = (scores[s.team_id] || 0) + 1;
+			const team = leaderboard.find(l => l.team_id === s.team_id);
+			if (team) {
+				if (s.location_id !== "CLG") {
+					team.score += 1; // Only count non-CLG scans for "Locations Visited"
+				}
 
-			// Track the latest scan time for tie-breaking
-			const scanTime = new Date(s.scan_time).getTime();
-			if (!lastScanTimes[s.team_id] || scanTime > lastScanTimes[s.team_id]) {
-				lastScanTimes[s.team_id] = scanTime;
+				// Track times
+				if (!team.times) team.times = [];
+				team.times.push({ loc: s.location_id, time: new Date(s.scan_time).getTime() });
 			}
 		});
 
-		const leaderboard = teams.map(t => ({
-			team_name: t.team_name,
-			score: scores[t.team_id] || 0,
-			last_scan_time: lastScanTimes[t.team_id] || 0
-		})).sort((a, b) => {
-			// Primary Sort: Score (Descending)
+		// Calculate Metrics
+		leaderboard.forEach(t => {
+			if (t.times) {
+				// Find start time (CLG)
+				const startScan = t.times.find(x => x.loc === "CLG");
+				const startTime = startScan ? startScan.time : 0; // Default to 0? Or maybe huge number? 
+				// Actually if no start time, they haven't started.
+
+				// Find 5th location time
+				const locScans = t.times.filter(x => x.loc !== "CLG").sort((a, b) => a.time - b.time);
+
+				if (locScans.length >= 5) {
+					const finishTime = locScans[4].time;
+					t.duration = finishTime - (startTime || finishTime); // If no start, duration is 0? No, avoid that. Use finishTime.
+					t.finished = true;
+				} else {
+					t.duration = Infinity;
+					t.finished = false;
+					// For active teams, use last scan time for tie-break
+					t.last_scan_time = locScans.length > 0 ? locScans[locScans.length - 1].time : 0;
+				}
+			}
+		});
+
+		leaderboard.sort((a, b) => {
+			// 1. Finished teams above Unfinished
+			if (a.finished && !b.finished) return -1;
+			if (!a.finished && b.finished) return 1;
+
+			// 2. If both Finished, sort by Duration (ASC)
+			if (a.finished && b.finished) {
+				return a.duration - b.duration;
+			}
+
+			// 3. If both Unfinished, sort by Score (DESC)
 			if (b.score !== a.score) {
 				return b.score - a.score;
 			}
-			// Secondary Sort: Time Taken (Ascending) - Earlier is better
-			// Only checking time if both have > 0 score, otherwise 0 time (started but nc) is not "better" 
-			// Actually, 0 time means no scans, so they should be last anyway due to score.
-			// But if score is tied (e.g. both have 5), smaller time is better.
+
+			// 4. If Score tied, sort by Last Scan Time (ASC) - Earlier is better
 			return a.last_scan_time - b.last_scan_time;
 		});
 
