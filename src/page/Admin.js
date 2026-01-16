@@ -233,29 +233,7 @@ const Admin = () => {
 		}
 	};
 
-	const handleSetProgress = async (teamId, count, nextLocation = null) => {
-		let msg = `Set progress for ${teamId} to ${count}? This will RESET their scans.`;
-		if (nextLocation) msg += ` Next Location: ${nextLocation}`;
-
-		if (!window.confirm(msg)) return;
-		try {
-			const res = await fetch(`${API_BASE_URL}/admin/set-progress`, {
-				method: "POST",
-				headers: getHeaders(),
-				body: JSON.stringify({ teamId, count, nextLocation })
-			});
-			if (res.ok) {
-				const data = await res.json();
-				addToast(data.message, 'success');
-				fetchTeams();
-			} else {
-				const err = await res.json();
-				addToast("Error: " + err.error, 'error');
-			}
-		} catch (e) {
-			addToast("Network Error", 'error');
-		}
-	};
+	// handleSetProgress removed (unused)
 
 	const toggleMembers = (teamId) => {
 		if (expandedTeam === teamId) setExpandedTeam(null);
