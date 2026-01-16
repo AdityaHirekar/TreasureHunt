@@ -470,8 +470,8 @@ const Scan = () => {
 						</form>
 					) : (
 						<form onSubmit={handleSendData}>
-							<AnimatePresence mode="wait">
-								{scannedData ? (
+							{scannedData ? (
+								<AnimatePresence mode="wait">
 									<motion.div
 										key="success"
 										className="success-message"
@@ -521,20 +521,19 @@ const Scan = () => {
 											</motion.button>
 										</div>
 									</motion.div>
-								) : (
-									<motion.button
-										key="scan-btn"
-										className="scan-button"
-										type="button"
-										onClick={openScanner}
-										variants={scanButtonVariants}
-										whileHover={{ scale: 1.05, boxShadow: "0 0 35px var(--mv-primary)" }}
-										whileTap={{ scale: 0.95 }}
-									>
-										Scan QR
-									</motion.button>
-								)}
-							</AnimatePresence>
+								</AnimatePresence>
+							) : (
+								<motion.button
+									className="scan-button"
+									type="button"
+									onClick={openScanner}
+									variants={scanButtonVariants}
+									whileHover={{ scale: 1.05, boxShadow: "0 0 35px var(--mv-primary)" }}
+									whileTap={{ scale: 0.95 }}
+								>
+									Scan QR
+								</motion.button>
+							)}
 							<br />
 							<div
 								style={{ marginTop: '20px', fontSize: '0.9em', color: '#aaa', userSelect: 'none', cursor: 'default' }}
