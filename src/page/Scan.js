@@ -30,6 +30,22 @@ const itemVariants = {
 	}
 };
 
+const scanButtonVariants = {
+	hidden: { y: 20, opacity: 0 },
+	visible: {
+		y: 0,
+		opacity: 1,
+		boxShadow: ["0 0 10px rgba(0, 217, 255, 0.2)", "0 0 25px rgba(0, 217, 255, 0.6)", "0 0 10px rgba(0, 217, 255, 0.2)"],
+		scale: [1, 1.02, 1],
+		transition: {
+			y: { type: "spring", stiffness: 100 },
+			opacity: { duration: 0.4 },
+			boxShadow: { duration: 2, repeat: Infinity, ease: "easeInOut" },
+			scale: { duration: 2, repeat: Infinity, ease: "easeInOut" }
+		}
+	}
+};
+
 const Scan = () => {
 	const ENABLE_COMPASS = false; // Set to true to enable Proximity Compass
 	const [scannedData, setScannedData] = useState(null);
@@ -512,15 +528,7 @@ const Scan = () => {
 										className="scan-button"
 										type="button"
 										onClick={openScanner}
-										variants={itemVariants}
-										animate={{
-											boxShadow: ["0 0 10px rgba(0, 217, 255, 0.2)", "0 0 25px rgba(0, 217, 255, 0.6)", "0 0 10px rgba(0, 217, 255, 0.2)"],
-											scale: [1, 1.02, 1]
-										}}
-										transition={{
-											boxShadow: { duration: 2, repeat: Infinity, ease: "easeInOut" },
-											scale: { duration: 2, repeat: Infinity, ease: "easeInOut" }
-										}}
+										variants={scanButtonVariants}
 										whileHover={{ scale: 1.05, boxShadow: "0 0 35px var(--mv-primary)" }}
 										whileTap={{ scale: 0.95 }}
 									>
