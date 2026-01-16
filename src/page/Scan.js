@@ -654,8 +654,8 @@ const Scan = () => {
 			<GameModal
 				isOpen={modalState.isOpen}
 				onClose={() => {
-					setModalState({ ...modalState, isOpen: false });
-					if (modalState.type === 'SUCCESS') setScannedData(null);
+					setModalState(prev => ({ ...prev, isOpen: false }));
+					setScannedData(null);
 				}}
 				type={modalState.type}
 				message={modalState.message}
