@@ -138,7 +138,14 @@ const Scan = () => {
 		fetch(`${API_BASE_URL}/team-status/${teamId}`)
 			.then(res => res.json())
 			.then(data => {
-				if (data.disqualified) setDisqualified(true);
+				if (data.disqualified) {
+					// Only show if not already acknowledged? Or show once?
+					setDisqualified(true);
+					setBanReason(data.banReason || "Admin Disqualification");
+				} else {
+					setDisqualified(false); // Valid if re-qualified
+				}
+
 				if (data.currentClue) setCurrentClue(data.currentClue);
 				if (data.targetCoords) setTargetCoords(data.targetCoords);
 			})
@@ -397,26 +404,9 @@ const Scan = () => {
 		}
 	};
 
-	if (disqualified) {
-		return (
-			<div className="main-wrapper" style={{ background: '#330000' }}>
-				<motion.div
-					className="container"
-					style={{ borderColor: 'red' }}
-					initial={{ scale: 0.8, opacity: 0 }}
-					animate={{ scale: 1, opacity: 1 }}
-					transition={{ type: "spring", stiffness: 200, damping: 10 }}
-				>
-					<h1 style={{ color: 'red', fontSize: 'min(3rem, 10vw)', overflowWrap: 'break-word' }}>DISQUALIFIED</h1>
-					<p style={{ color: 'white', fontSize: '1.2rem', margin: '20px 0', wordWrap: 'break-word', maxWidth: '100%' }}>
-						{banReason || "Your team has been disqualified by the admin."}
-						<br />
-						<span style={{ fontSize: '0.9em', color: '#ffaaaa' }}>Please report to the control desk.</span>
-					</p>
-				</motion.div>
-			</div>
-		);
-	}
+	// Render Disqualification Modal instead of blocking page
+	// Logic: If disqualified, show Modal.
+	// But we remove the previous blocking return.
 
 	return (
 		<AnimatedPage>
@@ -547,12 +537,20 @@ const Scan = () => {
 						<motion.p
 							style={{ marginTop: '20px', fontWeight: 'bold' }}
 							initial={{ opacity: 0, y: 10 }}
-							animate={{ opacity: 1, y: 0 }}
 						>
 							{message}
 						</motion.p>
 					)}
 
+					<GameModal
+						isOpen={disqualified}
+						title="⚠️ DISQUALIFIED ⚠️"
+						message={banReason || "You have been disqualified by the admin. Please report to the control desk."}
+						type="error"
+						onClose={() => setDisqualified(false)} // Allow closing to maybe look at other things or logout
+					/>
+
+					{/* Modal for Results/Errors */}
 					{/* Loading Spinner */}
 					{loading && <Spinner />}
 

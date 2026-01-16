@@ -77,12 +77,12 @@ async function checkTimeLimit(teamId) {
 		if (clgScan) {
 			const startTime = new Date(clgScan.scan_time).getTime();
 			const now = Date.now();
-			const TWO_HOURS = 2 * 60 * 60 * 1000;
+			const TWO_HOURS = 24 * 60 * 60 * 1000; // Extended to 24 Hours for event/testing
 
 			if (now - startTime > TWO_HOURS) {
-				// Time Exceeded - Disqualify
-				await supabase.from("teams").update({ disqualified: true }).eq("team_id", teamId);
-				return { expired: true, reason: "Time Limit Exceeded (2 Hours)" };
+				// Time Exceeded
+				// await supabase.from("teams").update({ disqualified: true }).eq("team_id", teamId); // Disable auto-ban for now
+				return { expired: true, reason: "Time Limit Exceeded (24 Hours)" };
 			}
 		}
 	} catch (e) {
@@ -493,7 +493,13 @@ app.get("/team-status/:teamId", async (req, res) => {
 			if (loc) currentHint = loc.location_hint;
 		}
 
-		res.json({ disqualified: team.disqualified, currentClue: currentHint });
+		// Check if banned_reason exists in team (if we had that column, but we generally just use admin notes or infer)
+		// For Time Limit, we know it's time limit
+		let banReason = null;
+		if (timeStatus.expired) banReason = timeStatus.reason;
+		else if (team.disqualified) banReason = "Disqualified by Admin"; // Generic fallback if manual
+
+		res.json({ disqualified: team.disqualified, banReason, currentClue: currentHint });
 	} catch (err) {
 		res.status(500).json({ error: err.message });
 	}
@@ -524,7 +530,8 @@ app.get("/admin/teams", async (req, res) => {
 		const { data: teams, error } = await supabase.from("teams").select("*").order("team_name", { ascending: true });
 		if (error) throw error;
 
-		// Refresh Time Limits
+		// Refresh Time Limits (Disabled auto-check on view to prevent fighting admin actions)
+		/*
 		for (const team of teams) {
 			if (!team.disqualified && team.assigned_location !== "COMPLETED") {
 				const status = await checkTimeLimit(team.team_id);
@@ -533,6 +540,7 @@ app.get("/admin/teams", async (req, res) => {
 				}
 			}
 		}
+		*/
 
 		res.json(teams);
 	} catch (err) {
