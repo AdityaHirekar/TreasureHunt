@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import GameModal from "../components/GameModal";
 import Spinner from "../components/Spinner";
@@ -55,6 +55,7 @@ const Scan = () => {
 
 	const [disqualified, setDisqualified] = useState(false);
 	const [banReason, setBanReason] = useState("");
+	const disqualificationAckRef = useRef(false); // Track if user acknowledged the specific DQ session
 	const [currentClue, setCurrentClue] = useState("");
 	const [loading, setLoading] = useState(false);
 
@@ -139,11 +140,14 @@ const Scan = () => {
 			.then(res => res.json())
 			.then(data => {
 				if (data.disqualified) {
-					// Only show if not already acknowledged? Or show once?
-					setDisqualified(true);
+					// Only show if not already acknowledged
+					if (!disqualificationAckRef.current) {
+						setDisqualified(true);
+					}
 					setBanReason(data.banReason || "Admin Disqualification");
 				} else {
 					setDisqualified(false); // Valid if re-qualified
+					disqualificationAckRef.current = false; // Reset ack so they get warned again if re-DQ'd
 				}
 
 				if (data.currentClue) setCurrentClue(data.currentClue);
@@ -547,7 +551,10 @@ const Scan = () => {
 						title="⚠️ DISQUALIFIED ⚠️"
 						message={banReason || "You have been disqualified by the admin. Please report to the control desk."}
 						type="error"
-						onClose={() => setDisqualified(false)} // Allow closing to maybe look at other things or logout
+						onClose={() => {
+							setDisqualified(false);
+							disqualificationAckRef.current = true; // Mark as acknowledged
+						}} // Allow closing to maybe look at other things or logout
 					/>
 
 					{/* Modal for Results/Errors */}
