@@ -496,13 +496,67 @@ app.get("/team-status/:teamId", async (req, res) => {
 			if (loc) currentHint = loc.location_hint;
 		}
 
+
+		// Calculate Rank if Completed
+		let rank = null;
+		if (team.assigned_location === "COMPLETED") {
+			// Count how many teams have finished before or at the same time (simplified: count all finished teams)
+			// Better: Count distinct teams with assigned_location = 'COMPLETED'
+			// If we want strict time-based, we'd need to query scans.
+			// For now, let's just count how many are completed. 
+			// Wait, the user wants "1st Place", "2nd Place" etc. 
+			// We can get the count of completed teams. 
+			// But for a specific team, their rank is fixed once they finish? 
+			// Actually, let's look at the leaderboard logic.
+			// Re-implementing a mini-leaderboard query here might be heavy but accurate.
+
+			// Quickest valid way: Count how many teams have finished.
+			// But that changes as more people finish.
+			// Rank should normally be based on "Order of Finish".
+			// Let's use the 'scans' table for the last "Success" scan where result was "WINNER" or "RANK" or just last scan location = 'COMPLETED' (which doesn't exist in scans table usually).
+			// Actually, let's count how many teams have assigned_location = 'COMPLETED'
+			// BUT this team is one of them.
+
+			// Let's query ALL completed teams and sort them by their LAST successful scan time.
+			const { data: completedTeams } = await supabase.from("teams").select("team_id").eq("assigned_location", "COMPLETED");
+
+			if (completedTeams && completedTeams.length > 0) {
+				const teamIds = completedTeams.map(t => t.team_id);
+
+				// Get last scan for each completed team
+				const { data: lastScans } = await supabase.from("scans")
+					.select("team_id, scan_time")
+					.in("team_id", teamIds)
+					.order("scan_time", { ascending: false }); // Latest first
+
+				// We need the *latest* scan for each team to determine when they finished.
+				// Since we ordered by desc, the first occurrence of a teamID is their finish time.
+				const finishedMap = {};
+				lastScans.forEach(s => {
+					if (!finishedMap[s.team_id]) finishedMap[s.team_id] = new Date(s.scan_time).getTime();
+				});
+
+				const sortedTeams = Object.keys(finishedMap).sort((a, b) => finishedMap[a] - finishedMap[b]);
+				const pageTeamIndex = sortedTeams.indexOf(teamId);
+				if (pageTeamIndex !== -1) {
+					rank = pageTeamIndex + 1;
+				}
+			}
+		}
+
 		// Check if banned_reason exists in team (if we had that column, but we generally just use admin notes or infer)
 		// For Time Limit, we know it's time limit
 		let banReason = null;
 		if (timeStatus.expired) banReason = timeStatus.reason;
 		else if (team.disqualified) banReason = "Disqualified by Admin"; // Generic fallback if manual
 
-		res.json({ disqualified: team.disqualified, banReason, currentClue: currentHint });
+		res.json({
+			disqualified: team.disqualified,
+			banReason,
+			currentClue: currentHint,
+			assigned_location: team.assigned_location,
+			rank: rank
+		});
 	} catch (err) {
 		res.status(500).json({ error: err.message });
 	}
@@ -637,6 +691,81 @@ app.post("/admin/ban", async (req, res) => {
 	const { error } = await supabase.from("banned_devices").insert([{ device_id: deviceId, reason }]);
 	if (error) return res.status(500).json({ error: error.message });
 	res.json({ message: `Device ${deviceId} banned.` });
+});
+
+app.post("/admin/set-progress", async (req, res) => {
+	const { teamId, count, nextLocation } = req.body;
+	if (typeof count !== 'number') return res.status(400).json({ error: "Invalid count" });
+
+	try {
+		// 0. Ensure "COMPLETED" location exists to satisfy Foreign Key
+		const { data: compLoc } = await supabase.from("location").select("location_code").eq("location_code", "COMPLETED").single();
+		if (!compLoc) {
+			await supabase.from("location").insert([{
+				location_code: "COMPLETED",
+				location_name: "Mission Complete",
+				location_hint: "Return to Base",
+				latitude: 0,
+				longitude: 0
+			}]);
+		}
+
+		// 1. Reset: Delete Clean
+		await supabase.from("scans").delete().eq("team_id", teamId);
+
+		// 2. Fetch all locations to pick dummies
+		const { data: allLocs } = await supabase.from("location").select("location_code").neq("location_code", "CLG");
+
+		let assignedLoc = "CLG"; // Default for 0
+
+		if (count > 0) {
+			// 3. Insert specific number of dummy scans
+			const scansToInsert = [];
+			// Shuffle locations
+			const shuffled = allLocs.sort(() => 0.5 - Math.random());
+			const selected = shuffled.slice(0, count); // Pick N locations
+
+			selected.forEach(loc => {
+				scansToInsert.push({
+					team_id: teamId,
+					location_id: loc.location_code,
+					scan_result: "SUCCESS",
+					scan_time: new Date().toISOString(),
+					device_id: "ADMIN_OVERRIDE"
+				});
+			});
+
+			if (scansToInsert.length > 0) {
+				const { error: insertError } = await supabase.from("scans").insert(scansToInsert);
+				if (insertError) throw insertError;
+			}
+
+			// 4. Set Next Location
+			if (nextLocation) {
+				assignedLoc = nextLocation;
+			} else if (count >= 5) { // Win Condition (assuming 5 is target)
+				assignedLoc = "COMPLETED";
+			} else {
+				// Pick one from remaining that wasn't selected
+				const remaining = allLocs.filter(l => !selected.find(s => s.location_code === l.location_code));
+				if (remaining.length > 0) {
+					assignedLoc = remaining[0].location_code;
+				} else {
+					assignedLoc = "COMPLETED"; // Fallback if no locations left
+				}
+			}
+		}
+
+		// 5. Update Team
+		const { error: updateError } = await supabase.from("teams").update({ assigned_location: assignedLoc, disqualified: false }).eq("team_id", teamId);
+		if (updateError) throw updateError;
+
+		res.json({ message: `Team ${teamId} progress set to ${count}. Next: ${assignedLoc}` });
+
+	} catch (err) {
+		console.error("Set Progress Error:", err);
+		res.status(500).json({ error: err.message });
+	}
 });
 
 app.listen(PORT, () => {

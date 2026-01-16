@@ -233,6 +233,30 @@ const Admin = () => {
 		}
 	};
 
+	const handleSetProgress = async (teamId, count, nextLocation = null) => {
+		let msg = `Set progress for ${teamId} to ${count}? This will RESET their scans.`;
+		if (nextLocation) msg += ` Next Location: ${nextLocation}`;
+
+		if (!window.confirm(msg)) return;
+		try {
+			const res = await fetch(`${API_BASE_URL}/admin/set-progress`, {
+				method: "POST",
+				headers: getHeaders(),
+				body: JSON.stringify({ teamId, count, nextLocation })
+			});
+			if (res.ok) {
+				const data = await res.json();
+				addToast(data.message, 'success');
+				fetchTeams();
+			} else {
+				const err = await res.json();
+				addToast("Error: " + err.error, 'error');
+			}
+		} catch (e) {
+			addToast("Network Error", 'error');
+		}
+	};
+
 	const toggleMembers = (teamId) => {
 		if (expandedTeam === teamId) setExpandedTeam(null);
 		else setExpandedTeam(teamId);
@@ -470,6 +494,14 @@ const Admin = () => {
 											>
 												Delete Team
 											</motion.button>
+
+											{/* Debug Tools */}
+											<div style={{ display: 'flex', gap: '2px', marginTop: '5px' }}>
+												<button onClick={() => handleSetProgress(t.team_id, 0)} className="outline-btn" style={{ fontSize: '0.7rem', padding: '2px 5px' }}>Rst</button>
+												<button onClick={() => handleSetProgress(t.team_id, 4)} className="outline-btn" style={{ fontSize: '0.7rem', padding: '2px 5px' }}>Set 4</button>
+												<button onClick={() => handleSetProgress(t.team_id, 5)} className="outline-btn" style={{ fontSize: '0.7rem', padding: '2px 5px' }}>Win</button>
+												<button onClick={() => handleSetProgress(t.team_id, 4, "DUMMY")} className="outline-btn" style={{ fontSize: '0.7rem', padding: '2px 5px', borderColor: 'orange', color: 'orange' }}>Test</button>
+											</div>
 										</div>
 									</motion.div>
 								))}

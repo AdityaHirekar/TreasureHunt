@@ -155,6 +155,25 @@ const Scan = () => {
 
 				if (data.currentClue) setCurrentClue(data.currentClue);
 				if (data.targetCoords) setTargetCoords(data.targetCoords);
+
+				// CHECK FOR VICTORY ON LOAD
+				if (data.assigned_location === "COMPLETED") {
+					if (data.rank === 1) {
+						setModalState({
+							isOpen: true,
+							type: "WINNER",
+							message: "MISSION COMPLETED",
+							secondaryMessage: "You are a Champion!"
+						});
+					} else {
+						setModalState({
+							isOpen: true,
+							type: "RANK",
+							message: "MISSION COMPLETE",
+							secondaryMessage: `You finished #${data.rank || "?"}`
+						});
+					}
+				}
 			})
 			.catch(err => console.error(err));
 	}, [teamId]);
