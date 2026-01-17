@@ -344,7 +344,7 @@ app.post("/scan", async (req, res) => {
 					message: "CHAMPION!",
 					rank: 1,
 					nextLocation: "COMPLETED",
-					nextClue: "CONGRATULATIONS! You are the first to finish! Proceed to the stage."
+					nextClue: "You have completed all the locations return to the college"
 				});
 			} else {
 				return res.status(200).json({
@@ -352,26 +352,50 @@ app.post("/scan", async (req, res) => {
 					message: "MISSION COMPLETE",
 					rank: myRank,
 					nextLocation: "COMPLETED",
-					nextClue: `You finished #${myRank}! Return to base to claim your prize.`
+					nextClue: "You have completed all the locations return to the college"
 				});
 			}
 		}
 
 		// Next Location (Normal Loop)
+		// ALLOWED POOL (excluding CLG):
+		// RADIO_CLUB (Radio Club)
+		// LION_GATE (Lion Gate)
+		// WESTSIDE (Westside)
+		// TAJ_HOTEL (Taj Hotel)
+		// ELECTRIC_HOUSE (Electric House)
+
+		const ALLOWED_LOCATIONS = ["RADIO_CLUB", "LION_GATE", "WESTSIDE", "TAJ_HOTEL", "ELECTRIC_HOUSE"];
+
 		// Exclude CLG, COMPLETED, DUMMY, and current location from the random pool
+		// AND strictly filter to allowed list
 		const { data: locations } = await supabase.from("location")
 			.select("location_code, location_hint")
+			.in("location_code", ALLOWED_LOCATIONS)
 			.neq("location_code", locationId)
 			.neq("location_code", "CLG")
 			.neq("location_code", "COMPLETED")
 			.neq("location_code", "DUMMY");
 
+		// Filter out already visited locations to avoid repeats (unless logic requires repeats? usually unique)
+		// Get all successful scans for this team to filter them out
+		const { data: visitedScans } = await supabase.from("scans")
+			.select("location_id")
+			.eq("team_id", teamId)
+			.eq("scan_result", "SUCCESS");
+
+		const visitedIds = (visitedScans || []).map(s => s.location_id);
+
+		const availableLocations = locations.filter(l => !visitedIds.includes(l.location_code));
+
 		let nextLocObj;
-		if (locations.length > 0) {
-			nextLocObj = locations[Math.floor(Math.random() * locations.length)];
+		if (availableLocations.length > 0) {
+			nextLocObj = availableLocations[Math.floor(Math.random() * availableLocations.length)];
 		} else {
-			// Fallback if no locations left
-			nextLocObj = { location_code: "COMPLETED", location_hint: "No more locations. Return to Base." };
+			// Fallback if no locations left -> FINISH
+			// This matches "when any of the registered teams completes 6 locations including college"
+			// (1 CLG + 5 others = 6 total)
+			nextLocObj = { location_code: "COMPLETED", location_hint: "You have completed all the locations return to the college" };
 		}
 
 		await supabase.from("teams").update({ assigned_location: nextLocObj.location_code }).eq("id", team.id);
