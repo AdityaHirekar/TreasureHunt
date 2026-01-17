@@ -282,20 +282,20 @@ app.post("/scan", async (req, res) => {
 			team_id: teamId, location_id: locationId, device_id: deviceId, client_lat: lat, client_lng: lng, scan_result: "SUCCESS", distance_check_meters: 0
 		}]);
 
-		// Check Win Condition: Have they visited 5 locations (excluding CLG)?
+
+		// Check Win Condition: Have they visited 6 locations (including CLG)?
 		const { data: teamScans, error: countError } = await supabase
 			.from("scans")
 			.select("location_id, scan_time")
 			.eq("team_id", teamId)
-			.eq("scan_result", "SUCCESS")
-			.neq("location_id", "CLG");
+			.eq("scan_result", "SUCCESS");
 
 		if (countError) console.error("Count Error", countError);
 
 		const successCount = (teamScans?.length || 0);
 
-		// If this was the 5th one, they are done.
-		if (successCount >= 5) {
+		// If this was the 6th one, they are done.
+		if (successCount >= 6) {
 
 			// --- RANKING CALCULATION (Time Based) ---
 			// 1. Fetch ALL successful scans for ALL teams
@@ -321,15 +321,15 @@ app.post("/scan", async (req, res) => {
 
 			const finishedTeams = [];
 			for (const [tId, stats] of Object.entries(teamStats)) {
-				// Filter out non-location scans if any, but logic above separates CLG
-				if (stats.scans.length >= 5) {
-					// Sort scans to find the 5th one time
-					stats.scans.sort((a, b) => a - b);
-					const fifthScanTime = stats.scans[4];
-					const startTime = stats.start || fifthScanTime; // Fallback if no CLG scan (shouldn't happen)
+				// We need 6 total scans to be finished
+				const allScans = [stats.start, ...stats.scans].filter(t => t > 0).sort((a, b) => a - b);
 
-					const duration = fifthScanTime - startTime;
-					finishedTeams.push({ teamId: tId, duration, finishTime: fifthScanTime });
+				if (allScans.length >= 6) {
+					const startTime = allScans[0]; // First scan (CLG)
+					const finishTime = allScans[5]; // 6th scan
+
+					const duration = finishTime - startTime;
+					finishedTeams.push({ teamId: tId, duration, finishTime });
 				}
 			}
 
@@ -420,7 +420,7 @@ app.post("/scan", async (req, res) => {
 // 4. Leaderboard
 app.get("/leaderboard", async (req, res) => {
 	try {
-		const { data: teamsData, error: teamsError } = await supabase.from("teams").select("team_id, team_name");
+		const { data: teamsData, error: teamsError } = await supabase.from("teams").select("team_id, team_name, assigned_location");
 		const { data: scansData, error: scansError } = await supabase.from("scans").select("team_id, scan_time, location_id").eq("scan_result", "SUCCESS");
 
 		if (teamsError) console.error("Teams Fetch Error", teamsError);
@@ -436,6 +436,7 @@ app.get("/leaderboard", async (req, res) => {
 			return {
 				team_name: t.team_name,
 				team_id: t.team_id,
+				assigned_location: t.assigned_location,
 				score: 0, // Will fill
 				duration: Infinity, // Lower is better
 				last_scan_time: 0
@@ -446,8 +447,8 @@ app.get("/leaderboard", async (req, res) => {
 		scans.forEach(s => {
 			const team = leaderboard.find(l => l.team_id === s.team_id);
 			if (team) {
-				if (s.location_id !== "CLG") {
-					team.score += 1; // Only count non-CLG scans for "Locations Visited"
+				if (s.location_id) {
+					team.score += 1; // Count ALL scans for "Locations Visited"
 				}
 
 				// Track times
@@ -459,24 +460,26 @@ app.get("/leaderboard", async (req, res) => {
 		// Calculate Metrics
 		leaderboard.forEach(t => {
 			if (t.times) {
-				// Find start time (CLG)
-				const startScan = t.times.find(x => x.loc === "CLG");
-				const startTime = startScan ? startScan.time : 0; // Default to 0? Or maybe huge number? 
-				// Actually if no start time, they haven't started.
+				// Find all scans sorted by time
+				const allScans = t.times.sort((a, b) => a.time - b.time);
 
-				// Find 5th location time
-				const locScans = t.times.filter(x => x.loc !== "CLG").sort((a, b) => a.time - b.time);
-
-				if (locScans.length >= 5) {
-					const finishTime = locScans[4].time;
-					t.duration = finishTime - (startTime || finishTime); // If no start, duration is 0? No, avoid that. Use finishTime.
+				if (allScans.length >= 6) {
+					const startTime = allScans[0].time;
+					const finishTime = allScans[5].time; // 6th scan
+					t.duration = finishTime - startTime;
 					t.finished = true;
 				} else {
 					t.duration = Infinity;
 					t.finished = false;
 					// For active teams, use last scan time for tie-break
-					t.last_scan_time = locScans.length > 0 ? locScans[locScans.length - 1].time : 0;
+					t.last_scan_time = allScans.length > 0 ? allScans[allScans.length - 1].time : 0;
 				}
+			}
+
+			// Admin Override / Manual Completion Logic
+			if (t.assigned_location === "COMPLETED") {
+				if (t.score < 6) t.score = 6;
+				t.finished = true;
 			}
 		});
 

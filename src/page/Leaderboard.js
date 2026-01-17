@@ -71,9 +71,9 @@ const Leaderboard = ({ isEmbedded = false }) => {
                                 {index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : `#${index + 1}`}
                             </span>
                             <span className="team-name">{team.team_name}</span>
-                            <span className="score">{team.score} / 5</span>
+                            <span className="score">{team.score} / 6</span>
                             <span className="status">
-                                {team.score >= 5 ? "COMPLETED" : "In Progress"}
+                                {team.score >= 6 ? "COMPLETED" : "In Progress"}
                             </span>
                         </motion.div>
                     ))}
