@@ -341,25 +341,14 @@ app.post("/scan", async (req, res) => {
 
 			await supabase.from("teams").update({ assigned_location: "COMPLETED" }).eq("id", team.id);
 
-			console.log(`Team ${teamId} Finished. Duration: ${finishedTeams.find(t => t.teamId === teamId).duration / 60000} mins. Rank: ${myRank}`);
+			console.log(`Team ${teamId} Finished.`);
 
-			if (myRank === 1) {
-				return res.status(200).json({
-					result: "WINNER",
-					message: "CHAMPION!",
-					rank: 1,
-					nextLocation: "COMPLETED",
-					nextClue: "You have completed all the locations return to the college"
-				});
-			} else {
-				return res.status(200).json({
-					result: "RANK",
-					message: "MISSION COMPLETE",
-					rank: myRank,
-					nextLocation: "COMPLETED",
-					nextClue: "You have completed all the locations return to the college"
-				});
-			}
+			return res.status(200).json({
+				result: "SUCCESS",
+				message: "MISSION COMPLETE",
+				nextLocation: "COMPLETED",
+				nextClue: "Return to the college for results"
+			});
 		}
 
 		// Next Location (Normal Loop)

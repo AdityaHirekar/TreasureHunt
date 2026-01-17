@@ -59,6 +59,7 @@ const Scan = () => {
 	const disqualificationAckRef = useRef(false); // Track if user acknowledged the specific DQ session
 	const [currentClue, setCurrentClue] = useState("");
 	const [loading, setLoading] = useState(false);
+	const [isCompleted, setIsCompleted] = useState(false);
 
 	// Compass State
 	const [targetCoords, setTargetCoords] = useState(null);
@@ -158,21 +159,15 @@ const Scan = () => {
 
 				// CHECK FOR VICTORY ON LOAD
 				if (data.assigned_location === "COMPLETED") {
-					if (data.rank === 1) {
-						setModalState({
-							isOpen: true,
-							type: "WINNER",
-							message: "MISSION COMPLETED",
-							secondaryMessage: "You are a Champion!"
-						});
-					} else {
-						setModalState({
-							isOpen: true,
-							type: "RANK",
-							message: "MISSION COMPLETE",
-							secondaryMessage: `You finished #${data.rank || "?"}`
-						});
-					}
+					setIsCompleted(true);
+					setModalState({
+						isOpen: true,
+						type: "SUCCESS",
+						message: "MISSION COMPLETE",
+						secondaryMessage: "Return to the college for results"
+					});
+				} else {
+					setIsCompleted(false);
 				}
 			})
 			.catch(err => console.error(err));
@@ -329,17 +324,24 @@ const Scan = () => {
 				const result = await response.json();
 
 				if (response.ok) {
-					if (result.result === "SUCCESS" || result.result === "WINNER" || result.result === "RANK") {
+					if (result.result === "SUCCESS" || result.result === "WINNER" || result.result === "RANK") { // Backend might still send old types temporarily, safe to catch all
 						setModalState({
 							isOpen: true,
-							type: result.result === "WINNER" ? "WINNER" : result.result === "RANK" ? "RANK" : "SUCCESS",
+							type: "SUCCESS",
 							message: result.message,
 							secondaryMessage: result.nextClue || "Clue Restricted. Contact HQ."
 						});
 						// Update persistent clue via server sync to ensure consistency
 						if (result.nextClue) setCurrentClue(result.nextClue);
 						fetchTeamStatus();
-						setMessage(`Location Verified: ${userPlusCode}`);
+
+						if (result.nextLocation === "COMPLETED") {
+							setIsCompleted(true);
+							setMessage("Mission Complete!");
+						} else {
+							setMessage(`Location Verified: ${userPlusCode}`);
+						}
+
 						playSuccessSound();
 						vibrateSuccess();
 					} else {
@@ -546,14 +548,14 @@ const Scan = () => {
 								<motion.button
 									className="scan-button"
 									type="button"
-									onClick={isDisqualified ? null : openScanner}
-									disabled={isDisqualified}
+									onClick={(isDisqualified || isCompleted) ? null : openScanner}
+									disabled={isDisqualified || isCompleted}
 									variants={scanButtonVariants}
-									whileHover={isDisqualified ? {} : { scale: 1.05, boxShadow: "0 0 35px var(--mv-primary)" }}
-									whileTap={isDisqualified ? {} : { scale: 0.95 }}
-									style={isDisqualified ? { filter: 'grayscale(1)', opacity: 0.5, cursor: 'not-allowed' } : {}}
+									whileHover={(isDisqualified || isCompleted) ? {} : { scale: 1.05, boxShadow: "0 0 35px var(--mv-primary)" }}
+									whileTap={(isDisqualified || isCompleted) ? {} : { scale: 0.95 }}
+									style={(isDisqualified || isCompleted) ? { filter: 'grayscale(1)', opacity: 0.5, cursor: 'not-allowed' } : {}}
 								>
-									{isDisqualified ? "LOCKED" : "Scan QR"}
+									{isDisqualified ? "LOCKED" : isCompleted ? "COMPLETED" : "Scan QR"}
 								</motion.button>
 							)}
 							<br />
